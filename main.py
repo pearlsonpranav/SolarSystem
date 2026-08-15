@@ -1,3 +1,5 @@
+# Import Libraries
+
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
@@ -45,7 +47,16 @@ def update_position(position, velocity, dt):
    new_position = position + velocity * dt
    return new_position
 
-# Main Simulation
+def update_position_verlet(position, velocity, acceleration, dt):
+    new_position = position + velocity * dt + 0.5 * acceleration * dt ** 2
+    return new_position
+
+
+def update_velocity_verlet(velocity, acceleration, new_acceleration, dt):
+    new_velocity = velocity + 0.5 * (acceleration + new_acceleration) * dt
+    return new_velocity
+
+# Core
 
 def main():
     print("Solar System Simulation")
@@ -107,21 +118,24 @@ def main():
 
     for step in range(number_of_steps):
 
-        # Calculate current gravitational force
-        force_vector = calculate_gravitational_force_vector(sun_mass, earth_mass, sun_position, earth_position)
-
-        # Calculate current acceleration
-        earth_acceleration = acceleration(force_vector, earth_mass)
-
-        # Update velocity
-        earth_velocity = update_velocity(earth_velocity, earth_acceleration, dt)
-
-        # Update position
-        earth_position = update_position(earth_position, earth_velocity, dt)
+        # Update position using Verlet method
+        earth_position = update_position_verlet(earth_position, earth_velocity, earth_acceleration, dt)
 
         # Store position
         x_positions.append(earth_position[0])
         y_positions.append(earth_position[1])
+
+        #  Calculate new gravitational force vector based on the updated position
+        force_vector = calculate_gravitational_force_vector(sun_mass, earth_mass, sun_position, earth_position)
+
+        # Calculate new acceleration based on the updated position
+        new_acceleration = acceleration(force_vector, earth_mass)
+
+        # Update velocity using Verlet method
+        earth_velocity = update_velocity_verlet(earth_velocity, earth_acceleration, new_acceleration, dt)
+
+        # Update the acceleration for the next iteration
+        earth_acceleration = new_acceleration
 
         time += dt
 
@@ -149,7 +163,7 @@ def main():
     ax.set_xlabel("x position (AU)")
     ax.set_ylabel("y position (AU)")
     ax.set_title("Earth's Orbit")
-    ax.axis("equal")
+    ax.set_aspect("equal")
     ax.legend()
 
     # Animation
