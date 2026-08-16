@@ -56,6 +56,45 @@ def update_velocity_verlet(velocity, acceleration, new_acceleration, dt):
     new_velocity = velocity + 0.5 * (acceleration + new_acceleration) * dt
     return new_velocity
 
+def simulate_euler(sun_position, earth_position, earth_velocity, dt, number_of_steps):
+    x_positions = []
+    y_positions = []
+
+    for step in range(number_of_steps):
+        force_vector = calculate_gravitational_force_vector(sun_mass, earth_mass, sun_position, earth_position)
+        earth_acceleration = acceleration(force_vector, earth_mass)
+
+        earth_velocity = update_velocity(earth_velocity, earth_acceleration, dt)
+        earth_position = update_position(earth_position, earth_velocity, dt)
+
+        x_positions.append(earth_position[0])
+        y_positions.append(earth_position[1])
+
+    return np.array(x_positions), np.array(y_positions)
+
+
+def simulate_verlet(sun_position, earth_position, earth_velocity, dt, number_of_steps):
+    x_positions = []
+    y_positions = []
+
+    force_vector = calculate_gravitational_force_vector(sun_mass, earth_mass, sun_position, earth_position)
+    earth_acceleration = acceleration(force_vector, earth_mass)
+
+    for step in range(number_of_steps):
+        earth_position = update_position_verlet(earth_position, earth_velocity, earth_acceleration, dt)
+
+        x_positions.append(earth_position[0])
+        y_positions.append(earth_position[1])
+
+        force_vector = calculate_gravitational_force_vector(sun_mass, earth_mass, sun_position, earth_position)
+        new_acceleration = acceleration(force_vector, earth_mass)
+
+        earth_velocity = update_velocity_verlet(earth_velocity, earth_acceleration, new_acceleration, dt)
+
+        earth_acceleration = new_acceleration
+
+    return np.array(x_positions), np.array(y_positions)
+
 # Core
 
 def main():
@@ -116,73 +155,31 @@ def main():
 
     number_of_steps = int(orbital_period / dt)
 
-    for step in range(number_of_steps):
+    euler_x, euler_y = simulate_euler(sun_position, earth_position, earth_velocity, dt, number_of_steps)
 
-        # Update position using Verlet method
-        earth_position = update_position_verlet(earth_position, earth_velocity, earth_acceleration, dt)
-
-        # Store position
-        x_positions.append(earth_position[0])
-        y_positions.append(earth_position[1])
-
-        #  Calculate new gravitational force vector based on the updated position
-        force_vector = calculate_gravitational_force_vector(sun_mass, earth_mass, sun_position, earth_position)
-
-        # Calculate new acceleration based on the updated position
-        new_acceleration = acceleration(force_vector, earth_mass)
-
-        # Update velocity using Verlet method
-        earth_velocity = update_velocity_verlet(earth_velocity, earth_acceleration, new_acceleration, dt)
-
-        # Update the acceleration for the next iteration
-        earth_acceleration = new_acceleration
-
-        time += dt
-
-    print("Final time:", time, "s")
-    print("Final Earth position:", earth_position)
-    print("Final Earth velocity:", earth_velocity)
+    verlet_x, verlet_y = simulate_verlet(sun_position, earth_position, earth_velocity, dt, number_of_steps)
 
     # Convert metres to astronomical units for plotting
 
-    x_positions_AU = np.array(x_positions) / AU
-    y_positions_AU = np.array(y_positions) / AU
+    euler_x_AU = euler_x / AU
+    euler_y_AU = euler_y / AU
+
+    verlet_x_AU = verlet_x / AU
+    verlet_y_AU = verlet_y / AU
 
     # Plot
 
     fig, ax = plt.subplots(figsize=(8, 8))
 
-    ax.plot(x_positions_AU, y_positions_AU, color="blue", label="Earth orbit")
-
+    ax.plot(euler_x_AU, euler_y_AU, color="red", label="Euler")
+    ax.plot(verlet_x_AU, verlet_y_AU, color="blue", label="Velocity Verlet")
     ax.scatter([0], [0], color="orange", s=200, label="Sun")
-
-    # Moving Earth marker
-
-    earth_marker, = ax.plot([], [], marker="o", color="blue", markersize=8, linestyle="None", label="Earth")
 
     ax.set_xlabel("x position (AU)")
     ax.set_ylabel("y position (AU)")
-    ax.set_title("Earth's Orbit")
+    ax.set_title("Euler vs Velocity Verlet")
     ax.set_aspect("equal")
-    ax.legend()
-
-    # Animation
-
-    animation_step = max(1, len(x_positions_AU) // 500)
-
-    def animate(frame):
-        index = frame * animation_step
-
-        if index >= len(x_positions_AU):
-            index = len(x_positions_AU) - 1
-
-        earth_marker.set_data([x_positions_AU[index]], [y_positions_AU[index]])
-
-        return earth_marker,
-
-    number_of_frames = (len(x_positions_AU) // animation_step)
-
-    animation = FuncAnimation(fig, animate, frames=number_of_frames, interval=20, blit=True, repeat=True)
+    ax.legend(loc="upper right")
 
     plt.show()
 
