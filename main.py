@@ -2,7 +2,6 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
 
 # Constants
 
@@ -146,18 +145,47 @@ def main():
 
     # Simulation
 
-    x_positions = []
-    y_positions = []
+    dt = 1000.0
 
-    time = 0.0
+    dt_values = []
+    euler_position_errors = []
+    verlet_position_errors = []
 
-    dt = 10.0 # Smaller timestep for better numerical accuracy
+    while dt >= 10.0:
 
-    number_of_steps = int(orbital_period / dt)
+        number_of_steps = round(orbital_period / dt)
 
-    euler_x, euler_y = simulate_euler(sun_position, earth_position, earth_velocity, dt, number_of_steps)
+        euler_x, euler_y = simulate_euler(sun_position, earth_position, earth_velocity, dt, number_of_steps)
 
-    verlet_x, verlet_y = simulate_verlet(sun_position, earth_position, earth_velocity, dt, number_of_steps)
+        verlet_x, verlet_y = simulate_verlet(sun_position, earth_position, earth_velocity, dt, number_of_steps)
+
+        #Error analysis
+
+        euler_final_radius = np.sqrt(euler_x[-1] ** 2 + euler_y[-1] ** 2)
+        verlet_final_radius = np.sqrt(verlet_x[-1] ** 2 + verlet_y[-1] ** 2)
+
+        euler_radius_error = euler_final_radius - orbital_radius
+        verlet_radius_error = verlet_final_radius - orbital_radius
+
+        euler_position_error = calculate_distance(np.array([euler_x[-1], euler_y[-1], 0.0]), earth_position)
+        verlet_position_error = calculate_distance(np.array([verlet_x[-1], verlet_y[-1], 0.0]), earth_position)
+
+        dt_values.append(dt)
+        euler_position_errors.append(euler_position_error)
+        verlet_position_errors.append(verlet_position_error)
+
+        print("Euler final radius:", euler_final_radius, "m")
+        print("Velocity Verlet final radius:", verlet_final_radius, "m")
+        print("Euler radius error:", euler_radius_error, "m")
+        print("Velocity Verlet radius error:", verlet_radius_error, "m")
+        print("Euler position error:", euler_position_error, "m")
+        print("Velocity Verlet position error:", verlet_position_error, "m")
+
+        dt /= 10.0
+
+    dt_values.reverse()
+    euler_position_errors.reverse()
+    verlet_position_errors.reverse()
 
     # Convert metres to astronomical units for plotting
 
@@ -180,6 +208,23 @@ def main():
     ax.set_title("Euler vs Velocity Verlet")
     ax.set_aspect("equal")
     ax.legend(loc="upper right")
+
+    plt.show()
+
+    # Error Plot
+
+    plt.figure(figsize=(8, 6))
+
+    plt.plot(dt_values, euler_position_errors, marker="o", label="Euler")
+    plt.plot(dt_values, verlet_position_errors, marker="o", label="Velocity Verlet")
+
+    plt.xlabel("Timestep (s)")
+    plt.ylabel("Position error (m)")
+    plt.title("Position Error vs Timestep")
+    plt.xscale("log")
+    plt.yscale("log")
+    plt.legend()
+    plt.grid()
 
     plt.show()
 
