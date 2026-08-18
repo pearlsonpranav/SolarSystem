@@ -3,96 +3,14 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+from dynamics import (G, calculate_distance, calculate_gravitational_force, calculate_gravitational_force_vector, calculate_acceleration)
+from integrators import simulate_euler, simulate_verlet
+
 # Constants
 
-G = 6.67430e-11
 AU = 1.496e11
 sun_mass = 1.989e30
 earth_mass = 5.972e24
-
-# Functions
-
-def calculate_distance(position1, position2):
-    displacement = position1 - position2
-    distance = np.linalg.norm(displacement)
-    return distance
-
-
-def calculate_gravitational_force(mass1, mass2, distance):
-    force_scalar = G * (mass1 * mass2) / (distance ** 2)
-    return force_scalar
-
-
-def calculate_gravitational_force_vector(mass1, mass2, position1, position2):
-    displacement = position1 - position2
-    distance = np.linalg.norm(displacement)
-    force_magnitude = G * (mass1 * mass2) / (distance ** 2)
-    force_direction = displacement / distance
-    force_vector = force_magnitude * force_direction
-    return force_vector
-
-
-def acceleration(force, mass):
-    acceleration = force / mass
-    return acceleration
-
-
-def update_velocity(velocity, acceleration, dt):
-    new_velocity = velocity + acceleration * dt
-    return new_velocity
-
-
-def update_position(position, velocity, dt):
-   new_position = position + velocity * dt
-   return new_position
-
-def update_position_verlet(position, velocity, acceleration, dt):
-    new_position = position + velocity * dt + 0.5 * acceleration * dt ** 2
-    return new_position
-
-
-def update_velocity_verlet(velocity, acceleration, new_acceleration, dt):
-    new_velocity = velocity + 0.5 * (acceleration + new_acceleration) * dt
-    return new_velocity
-
-def simulate_euler(sun_position, earth_position, earth_velocity, dt, number_of_steps):
-    x_positions = []
-    y_positions = []
-
-    for step in range(number_of_steps):
-        force_vector = calculate_gravitational_force_vector(sun_mass, earth_mass, sun_position, earth_position)
-        earth_acceleration = acceleration(force_vector, earth_mass)
-
-        earth_velocity = update_velocity(earth_velocity, earth_acceleration, dt)
-        earth_position = update_position(earth_position, earth_velocity, dt)
-
-        x_positions.append(earth_position[0])
-        y_positions.append(earth_position[1])
-
-    return np.array(x_positions), np.array(y_positions)
-
-
-def simulate_verlet(sun_position, earth_position, earth_velocity, dt, number_of_steps):
-    x_positions = []
-    y_positions = []
-
-    force_vector = calculate_gravitational_force_vector(sun_mass, earth_mass, sun_position, earth_position)
-    earth_acceleration = acceleration(force_vector, earth_mass)
-
-    for step in range(number_of_steps):
-        earth_position = update_position_verlet(earth_position, earth_velocity, earth_acceleration, dt)
-
-        x_positions.append(earth_position[0])
-        y_positions.append(earth_position[1])
-
-        force_vector = calculate_gravitational_force_vector(sun_mass, earth_mass, sun_position, earth_position)
-        new_acceleration = acceleration(force_vector, earth_mass)
-
-        earth_velocity = update_velocity_verlet(earth_velocity, earth_acceleration, new_acceleration, dt)
-
-        earth_acceleration = new_acceleration
-
-    return np.array(x_positions), np.array(y_positions)
 
 # Core
 
@@ -131,7 +49,7 @@ def main():
 
     # Acceleration (m/s^2)
 
-    earth_acceleration = acceleration(force_vector, earth_mass)
+    earth_acceleration = calculate_acceleration(force_vector, earth_mass)
 
     print("Earth acceleration due to Sun's gravity:", earth_acceleration, "m/s^2")
 
@@ -155,9 +73,9 @@ def main():
 
         number_of_steps = round(orbital_period / dt)
 
-        euler_x, euler_y = simulate_euler(sun_position, earth_position, earth_velocity, dt, number_of_steps)
+        euler_x, euler_y = simulate_euler(sun_position, earth_position, sun_mass, earth_mass, earth_velocity, dt, number_of_steps)
 
-        verlet_x, verlet_y = simulate_verlet(sun_position, earth_position, earth_velocity, dt, number_of_steps)
+        verlet_x, verlet_y = simulate_verlet(sun_position, earth_position, sun_mass, earth_mass, earth_velocity, dt, number_of_steps)
 
         #Error analysis
 
