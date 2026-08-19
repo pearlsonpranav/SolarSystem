@@ -37,6 +37,8 @@ def simulate_euler(position1, position2, mass1, mass2, velocity, dt, number_of_s
 def simulate_verlet(position1, position2, mass1, mass2, velocity, dt, number_of_steps):
     x_positions = []
     y_positions = []
+    x_velocities = []
+    y_velocities = []
 
     position = position2
 
@@ -47,9 +49,6 @@ def simulate_verlet(position1, position2, mass1, mass2, velocity, dt, number_of_
     for step in range(number_of_steps):
         position = update_position_verlet(position, velocity, current_acceleration, dt)
 
-        x_positions.append(position[0])
-        y_positions.append(position[1])
-
         force_vector = calculate_gravitational_force_vector(mass1, mass2, position1, position)
 
         new_acceleration = calculate_acceleration(force_vector, mass2)
@@ -58,4 +57,9 @@ def simulate_verlet(position1, position2, mass1, mass2, velocity, dt, number_of_
 
         current_acceleration = new_acceleration
 
-    return np.array(x_positions), np.array(y_positions)
+        x_positions.append(position[0])
+        y_positions.append(position[1])
+        x_velocities.append(velocity[0])
+        y_velocities.append(velocity[1])
+
+    return np.array(x_positions), np.array(y_positions), np.array(x_velocities), np.array(y_velocities)

@@ -17,98 +17,92 @@ earth_mass = 5.972e24
 def main():
     print("Solar System Simulation")
 
-    # Initial Positions (m)
+    # Initial Orbit
 
-    sun_position = np.array([0.0, 0.0, 0.0])
-    earth_position = np.array([1.496e11, 0.0, 0.0])
+    earth_eccentricity = 0.0167
+    semi_major_axis = AU
 
-    print("Sun position:", sun_position)
-    print("Earth position:", earth_position)
+    perihelion_distance = semi_major_axis * (1 - earth_eccentricity)
 
-    # Initial Velocity (m/s)
+    sun_position = np.array([0.0, 0.0])
+    earth_position = np.array([perihelion_distance, 0.0])
 
-    orbital_radius = calculate_distance(sun_position, earth_position)
+    earth_orbital_speed = np.sqrt(G * sun_mass * (2 / perihelion_distance - 1 / semi_major_axis))
 
-    earth_orbital_speed = np.sqrt(G * sun_mass / orbital_radius)
-
-    earth_velocity = np.array([0.0, earth_orbital_speed, 0.0])
-
-    print("Earth velocity:", earth_velocity, "m/s")
-
-    # Gravitational Force (N)
-
-    distance = calculate_distance(sun_position, earth_position)
-
-    force = calculate_gravitational_force(sun_mass, earth_mass, distance)
-
-    print("Gravitational force between Sun and Earth:", force, "N")
-
-    force_vector = calculate_gravitational_force_vector(sun_mass, earth_mass, sun_position, earth_position)
-
-    print("Gravitational force vector between Sun and Earth:", force_vector, "N")
-
-    # Acceleration (m/s^2)
-
-    earth_acceleration = calculate_acceleration(force_vector, earth_mass)
-
-    print("Earth acceleration due to Sun's gravity:", earth_acceleration, "m/s^2")
-
-    # Orbital Period
-
-    orbital_period = (2 * np.pi * np.sqrt(orbital_radius ** 3 / (G * sun_mass)))
-
-    print("Calculated orbital period:", orbital_period, "s")
-
-    print("Calculated orbital period:", orbital_period / (60 * 60 * 24), "days")
-
+    earth_velocity = np.array([0.0, earth_orbital_speed])
+    
     # Simulation
 
-    dt = 1000.0
+    dt = 10.0 # Time step in seconds - the smaller the time step, the more accurate the simulation, but it will take longer to run.
+    simulation_time = 1000 * 24 * 60 * 60 # Total simulation time in seconds (1000 days) - the longer the simulation time, the more accurate the simulation, but it will take longer to run.
+    number_of_steps = round(simulation_time / dt)
 
-    dt_values = []
-    euler_position_errors = []
-    verlet_position_errors = []
+    verlet_x, verlet_y, verlet_vx, verlet_vy = simulate_verlet(sun_position, earth_position, sun_mass, earth_mass, earth_velocity, dt, number_of_steps)
 
-    while dt >= 10.0:
+    # Kepler's First Law
 
-        number_of_steps = round(orbital_period / dt)
+    distances = np.sqrt(verlet_x ** 2 + verlet_y ** 2)
 
-        euler_x, euler_y = simulate_euler(sun_position, earth_position, sun_mass, earth_mass, earth_velocity, dt, number_of_steps)
+    perihelion_distance = np.min(distances)
+    aphelion_distance = np.max(distances)
 
-        verlet_x, verlet_y = simulate_verlet(sun_position, earth_position, sun_mass, earth_mass, earth_velocity, dt, number_of_steps)
+    calculated_semi_major_axis = (perihelion_distance + aphelion_distance) / 2
+    calculated_eccentricity = (aphelion_distance - perihelion_distance) / (aphelion_distance + perihelion_distance)
 
-        #Error analysis
+    print("Calculated semi-major axis:", calculated_semi_major_axis / AU, "AU")
+    print("Calculated eccentricity:", calculated_eccentricity)
 
-        euler_final_radius = np.sqrt(euler_x[-1] ** 2 + euler_y[-1] ** 2)
-        verlet_final_radius = np.sqrt(verlet_x[-1] ** 2 + verlet_y[-1] ** 2)
+    Centre_of_ellipse = np.array([(np.max(verlet_x) + np.min(verlet_x)) / 2, (np.max(verlet_y) + np.min(verlet_y)) / 2])
 
-        euler_radius_error = euler_final_radius - orbital_radius
-        verlet_radius_error = verlet_final_radius - orbital_radius
+    if np.isclose(calculate_distance(Centre_of_ellipse, sun_position), calculated_semi_major_axis * calculated_eccentricity, rtol=1e-5) and np.isclose(Centre_of_ellipse[1], 0.0, atol = 1e3):
+        print("Kepler's First Law is satisfied.")
+    else:
+        print("Kepler's First Law is not satisfied.")
 
-        euler_position_error = calculate_distance(np.array([euler_x[-1], euler_y[-1], 0.0]), earth_position)
-        verlet_position_error = calculate_distance(np.array([verlet_x[-1], verlet_y[-1], 0.0]), earth_position)
+    # Kepler's Second Law
 
-        dt_values.append(dt)
-        euler_position_errors.append(euler_position_error)
-        verlet_position_errors.append(verlet_position_error)
+    def area_swept(verlet_x, verlet_y):
+        areas = []
 
-        print("Euler final radius:", euler_final_radius, "m")
-        print("Velocity Verlet final radius:", verlet_final_radius, "m")
-        print("Euler radius error:", euler_radius_error, "m")
-        print("Velocity Verlet radius error:", verlet_radius_error, "m")
-        print("Euler position error:", euler_position_error, "m")
-        print("Velocity Verlet position error:", verlet_position_error, "m")
+        for n in range(len(verlet_x) - 1):
 
-        dt /= 10.0
+            area = 0.5 * np.abs(verlet_x[n] * verlet_y[n + 1] - verlet_y[n] * verlet_x[n + 1])
+            areas.append(area)
 
-    dt_values.reverse()
-    euler_position_errors.reverse()
-    verlet_position_errors.reverse()
+        return np.array(areas)
+    
+    areas = area_swept(verlet_x, verlet_y)
+
+    percentage_difference = (np.max(areas) - np.min(areas)) / np.mean(areas) * 100
+    print("Percentage difference between maximum and minimum areas:", percentage_difference, "%")
+
+    if np.isclose(np.min(areas), np.max(areas), rtol=1e-5):
+        print("Kepler's Second Law is satisfied.")
+    else:
+        print("Kepler's Second Law is not satisfied.")
+
+    # Kepler's Third Law
+
+    earth_speed = np.sqrt(verlet_vx ** 2 + verlet_vy ** 2)
+
+    perihelion_indices = []
+
+    for n in range(1, len(earth_speed) - 1):
+        if earth_speed[n] > earth_speed[n - 1] and earth_speed[n] > earth_speed[n + 1]:
+            perihelion_indices.append(n)
+
+    earth_orbital_period = (perihelion_indices[1] - perihelion_indices[0]) * dt
+
+    print("Measured orbital period:", earth_orbital_period / (60 * 60 * 24), "days")
+
+    KL3_proportionality_constant = earth_orbital_period ** 2 / (calculated_semi_major_axis ** 3)
+
+    if np.isclose(KL3_proportionality_constant, 4 * np.pi ** 2 / (G * sun_mass), rtol=1e-7):
+        print("Kepler's Third Law is satisfied.")
+    else:
+        print("Kepler's Third Law is not satisfied.")
 
     # Convert metres to astronomical units for plotting
-
-    euler_x_AU = euler_x / AU
-    euler_y_AU = euler_y / AU
 
     verlet_x_AU = verlet_x / AU
     verlet_y_AU = verlet_y / AU
@@ -117,32 +111,14 @@ def main():
 
     fig, ax = plt.subplots(figsize=(8, 8))
 
-    ax.plot(euler_x_AU, euler_y_AU, color="red", label="Euler")
-    ax.plot(verlet_x_AU, verlet_y_AU, color="blue", label="Velocity Verlet")
-    ax.scatter([0], [0], color="orange", s=200, label="Sun")
+    ax.plot(verlet_x_AU, verlet_y_AU, color="blue", label="Earth")
+    ax.scatter([0], [0], s=200, color="orange", label="Sun")
 
     ax.set_xlabel("x position (AU)")
     ax.set_ylabel("y position (AU)")
-    ax.set_title("Euler vs Velocity Verlet")
+    ax.set_title("Earth's Orbit")
     ax.set_aspect("equal")
     ax.legend(loc="upper right")
-
-    plt.show()
-
-    # Error Plot
-
-    plt.figure(figsize=(8, 6))
-
-    plt.plot(dt_values, euler_position_errors, marker="o", label="Euler")
-    plt.plot(dt_values, verlet_position_errors, marker="o", label="Velocity Verlet")
-
-    plt.xlabel("Timestep (s)")
-    plt.ylabel("Position error (m)")
-    plt.title("Position Error vs Timestep")
-    plt.xscale("log")
-    plt.yscale("log")
-    plt.legend()
-    plt.grid()
 
     plt.show()
 
