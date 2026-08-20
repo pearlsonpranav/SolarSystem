@@ -4,13 +4,32 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from dynamics import (G, calculate_distance, calculate_gravitational_force, calculate_gravitational_force_vector, calculate_acceleration)
-from integrators import simulate_euler, simulate_verlet
+from integrators import simulate_verlet
 
 # Constants
 
 AU = 1.496e11
 sun_mass = 1.989e30
 earth_mass = 5.972e24
+
+# Functions
+
+def plot_energy(kinetic_energies, potential_energies, total_energies, dt):
+    time = np.arange(len(kinetic_energies)) * dt / (60 * 60 * 24)
+
+    plt.figure(figsize=(10, 6))
+
+    plt.plot(time, kinetic_energies, label="Kinetic Energy")
+    plt.plot(time, potential_energies, label="Potential Energy")
+    plt.plot(time, total_energies, label="Total Energy")
+
+    plt.xlabel("Time (days)")
+    plt.ylabel("Energy (J)")
+    plt.title("Energy Variation During Earth's Orbit")
+    plt.legend(loc="upper right")
+    plt.grid()
+
+    plt.show()
 
 # Core
 
@@ -29,7 +48,7 @@ def main():
 
     earth_orbital_speed = np.sqrt(G * sun_mass * (2 / perihelion_distance - 1 / semi_major_axis))
 
-    earth_velocity = np.array([0.0, earth_orbital_speed])
+    earth_orbital_velocity = np.array([0.0, earth_orbital_speed])
     
     # Simulation
 
@@ -37,7 +56,7 @@ def main():
     simulation_time = 1000 * 24 * 60 * 60 # Total simulation time in seconds (1000 days) - the longer the simulation time, the more accurate the simulation, but it will take longer to run.
     number_of_steps = round(simulation_time / dt)
 
-    verlet_x, verlet_y, verlet_vx, verlet_vy = simulate_verlet(sun_position, earth_position, sun_mass, earth_mass, earth_velocity, dt, number_of_steps)
+    verlet_x, verlet_y, verlet_vx, verlet_vy = simulate_verlet(sun_position, earth_position, sun_mass, earth_mass, earth_orbital_velocity, dt, number_of_steps)
 
     # Kepler's First Law
 
@@ -73,8 +92,8 @@ def main():
     
     areas = area_swept(verlet_x, verlet_y)
 
-    percentage_difference = (np.max(areas) - np.min(areas)) / np.mean(areas) * 100
-    print("Percentage difference between maximum and minimum areas:", percentage_difference, "%")
+    percentage_difference_areas = (np.max(areas) - np.min(areas)) / np.mean(areas) * 100
+    print("Percentage difference between maximum and minimum areas:", percentage_difference_areas, "%")
 
     if np.isclose(np.min(areas), np.max(areas), rtol=1e-5):
         print("Kepler's Second Law is satisfied.")
@@ -83,12 +102,19 @@ def main():
 
     # Kepler's Third Law
 
-    earth_speed = np.sqrt(verlet_vx ** 2 + verlet_vy ** 2)
-
     perihelion_indices = []
 
-    for n in range(1, len(earth_speed) - 1):
-        if earth_speed[n] > earth_speed[n - 1] and earth_speed[n] > earth_speed[n + 1]:
+    for n in range(1, len(verlet_x)):
+        previous_position = np.array([verlet_x[n - 1], verlet_y[n - 1]])
+        previous_velocity = np.array([verlet_vx[n - 1], verlet_vy[n - 1]])
+
+        current_position = np.array([verlet_x[n], verlet_y[n]])
+        current_velocity = np.array([verlet_vx[n], verlet_vy[n]])
+
+        previous_radial_motion = np.dot(previous_position, previous_velocity)
+        current_radial_motion = np.dot(current_position, current_velocity)
+
+        if previous_radial_motion < 0 and current_radial_motion > 0:
             perihelion_indices.append(n)
 
     earth_orbital_period = (perihelion_indices[1] - perihelion_indices[0]) * dt
@@ -101,6 +127,86 @@ def main():
         print("Kepler's Third Law is satisfied.")
     else:
         print("Kepler's Third Law is not satisfied.")
+
+    # Kinetic Energy
+
+    kinetic_energies = []
+
+    for i in range(len(verlet_vx)):
+        kinetic_energies.append(0.5 * earth_mass * (verlet_vx[i] ** 2 + verlet_vy[i] ** 2))
+
+    print("Initial kinetic energy:", kinetic_energies[0], "J")
+    print("Final kinetic energy:", kinetic_energies[-1], "J")
+
+    # Gravitational Potential Energy
+
+    potential_energies = []
+
+    for i in range(len(verlet_x)):
+        distance = np.sqrt(verlet_x[i] ** 2 + verlet_y[i] ** 2)
+        potential_energy = -G * sun_mass * earth_mass / distance
+        potential_energies.append(potential_energy)
+
+    print("Initial gravitational potential energy:", potential_energies[0], "J")
+    print("Final gravitational potential energy:", potential_energies[-1], "J")
+
+    # Total Orbital Energy (Checking Conservation of Energy)
+
+    total_energies = []
+    
+    for i in range(len(kinetic_energies)):
+        total_energies.append(kinetic_energies[i] + potential_energies[i])
+
+    percentage_difference_total_energy = (np.max(total_energies) - np.min(total_energies)) / abs(np.mean(total_energies)) * 100
+    print("Percentage difference between maximum and minimum total energies:", percentage_difference_total_energy, "%")
+
+    if np.isclose(np.max(total_energies), np.min(total_energies), rtol=1e-10):
+        print("Total orbital energy is conserved.")
+    else:
+        print("Total orbital energy is not conserved.")
+
+    # Theoretical Orbital Energy (Verifying the Total Energy of the Orbit)
+
+    theoretical_total_energy = -G * sun_mass * earth_mass / (2 * semi_major_axis)
+
+    print("Theoretical total energy:", theoretical_total_energy, "J")
+    print("Simulated mean total energy:", np.mean(total_energies), "J")
+
+    percentage_difference_energy = (abs(theoretical_total_energy - np.mean(total_energies)) / abs(theoretical_total_energy)) * 100
+
+    print("Percentage difference between simulated and theoretical energy:", percentage_difference_energy, "%")
+
+    # Energy Variation Plot
+
+    plot_energy(kinetic_energies, potential_energies, total_energies, dt)
+
+    # Escape Velocity
+
+    escape_velocities = []
+
+    for i in range(len(verlet_x)):
+        distance = np.sqrt(verlet_x[i] ** 2 + verlet_y[i] ** 2)
+        escape_velocity = np.sqrt(2 * G * sun_mass / distance)
+        escape_velocities.append(escape_velocity)
+
+    calculated_earth_orbital_speed = np.sqrt(verlet_vx ** 2 + verlet_vy ** 2)
+
+    print("Initial orbital speed:", calculated_earth_orbital_speed[0], "m/s")
+    print("Initial escape velocity:", escape_velocities[0], "m/s")
+
+    if np.all(calculated_earth_orbital_speed < escape_velocities):
+        print("Earth remains below escape velocity.")
+    else:
+        print("Earth exceeds escape velocity.")
+
+    # Orbit Classification
+
+    if np.all(np.array(total_energies) < 0):
+        print("Orbit is bound.")
+    elif np.all(np.isclose(total_energies, 0)):
+        print("Orbit is at the escape boundary.")
+    else:
+        print("Orbit is unbound.")
 
     # Convert metres to astronomical units for plotting
 

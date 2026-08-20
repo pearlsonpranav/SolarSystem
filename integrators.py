@@ -46,6 +46,12 @@ def simulate_verlet(position1, position2, mass1, mass2, velocity, dt, number_of_
 
     current_acceleration = calculate_acceleration(force_vector, mass2)
 
+    # Initial position and velocity
+    x_positions.append(position[0])
+    y_positions.append(position[1])
+    x_velocities.append(velocity[0])
+    y_velocities.append(velocity[1])
+
     for step in range(number_of_steps):
         position = update_position_verlet(position, velocity, current_acceleration, dt)
 
