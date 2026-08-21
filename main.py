@@ -42,6 +42,7 @@ def main():
     semi_major_axis = AU
 
     perihelion_distance = semi_major_axis * (1 - earth_eccentricity)
+    aphelion_distance = semi_major_axis * (1 + earth_eccentricity)
 
     sun_position = np.array([0.0, 0.0])
     earth_position = np.array([perihelion_distance, 0.0])
@@ -62,11 +63,11 @@ def main():
 
     distances = np.sqrt(verlet_x ** 2 + verlet_y ** 2)
 
-    perihelion_distance = np.min(distances)
-    aphelion_distance = np.max(distances)
+    calculated_perihelion_distance = np.min(distances)
+    calculated_aphelion_distance = np.max(distances)
 
-    calculated_semi_major_axis = (perihelion_distance + aphelion_distance) / 2
-    calculated_eccentricity = (aphelion_distance - perihelion_distance) / (aphelion_distance + perihelion_distance)
+    calculated_semi_major_axis = (calculated_perihelion_distance + calculated_aphelion_distance) / 2
+    calculated_eccentricity = (calculated_aphelion_distance - calculated_perihelion_distance) / (calculated_aphelion_distance + calculated_perihelion_distance)
 
     print("Calculated semi-major axis:", calculated_semi_major_axis / AU, "AU")
     print("Calculated eccentricity:", calculated_eccentricity)
@@ -128,6 +129,30 @@ def main():
     else:
         print("Kepler's Third Law is not satisfied.")
 
+    # Perihelion and Aphelion Velocities
+
+    perihelion_index = np.argmin(distances)
+    aphelion_index = np.argmax(distances)
+
+    perihelion_velocity = np.sqrt(verlet_vx[perihelion_index] ** 2 + verlet_vy[perihelion_index] ** 2)
+    aphelion_velocity = np.sqrt(verlet_vx[aphelion_index] ** 2 + verlet_vy[aphelion_index] ** 2)
+
+    print("Perihelion velocity:", perihelion_velocity, "m/s")
+    print("Aphelion velocity:", aphelion_velocity, "m/s")
+
+    # Vis-viva Equation (Verifying the Perihelion and Aphelion Velocities)
+
+    theoretical_perihelion_velocity = np.sqrt(G * sun_mass * (2 / perihelion_distance - 1 / semi_major_axis))
+    theoretical_aphelion_velocity = np.sqrt(G * sun_mass * (2 / aphelion_distance - 1 / semi_major_axis))
+
+    print("Theoretical Perihelion velocity:", theoretical_perihelion_velocity, "m/s")
+    print("Theoretical Aphelion velocity:", theoretical_aphelion_velocity, "m/s")
+
+    if np.isclose(perihelion_velocity, theoretical_perihelion_velocity, atol = 1e-10) and np.isclose(aphelion_velocity, theoretical_aphelion_velocity, atol = 1e-10):
+        print("Calculated Perihelion and Aphelion veloctities is approved by the Vis-Visa equation")
+    else:
+        print("Calculated Perihelion and Aphelion veloctities is not approved by the Vis-Visa equation")
+
     # Kinetic Energy
 
     kinetic_energies = []
@@ -138,7 +163,7 @@ def main():
     print("Initial kinetic energy:", kinetic_energies[0], "J")
     print("Final kinetic energy:", kinetic_energies[-1], "J")
 
-    # Gravitational Potential Energy
+    # Potential Energy
 
     potential_energies = []
 
@@ -165,7 +190,7 @@ def main():
     else:
         print("Total orbital energy is not conserved.")
 
-    # Theoretical Orbital Energy (Verifying the Total Energy of the Orbit)
+    # Theoretical Orbital Energy (Verifying the Calculated Total Energy of the Orbit)
 
     theoretical_total_energy = -G * sun_mass * earth_mass / (2 * semi_major_axis)
 
@@ -175,6 +200,24 @@ def main():
     percentage_difference_energy = (abs(theoretical_total_energy - np.mean(total_energies)) / abs(theoretical_total_energy)) * 100
 
     print("Percentage difference between simulated and theoretical energy:", percentage_difference_energy, "%")
+
+    # Perihelion and Aphelion Energies
+
+    perihelion_kinetic_energy = kinetic_energies[perihelion_index]
+    aphelion_kinetic_energy = kinetic_energies[aphelion_index]
+    perihelion_potential_energy = potential_energies[perihelion_index]
+    aphelion_potential_energy = potential_energies[aphelion_index]
+
+    print("Perihelion KE:", perihelion_kinetic_energy, "J")
+    print("Aphelion KE:", aphelion_kinetic_energy, "J")
+    print("Perihelion PE:", perihelion_potential_energy, "J")
+    print("Aphelion PE:", aphelion_potential_energy, "J")
+
+    perihelion_energy = total_energies[perihelion_index]
+    aphelion_energy = total_energies[aphelion_index]
+
+    print("Perihelion energy:", perihelion_energy, "J")
+    print("Aphelion energy:", aphelion_energy, "J")
 
     # Energy Variation Plot
 
@@ -207,6 +250,37 @@ def main():
         print("Orbit is at the escape boundary.")
     else:
         print("Orbit is unbound.")
+
+    # Angular Momentum (Checking Conservation of Angular Momentum)
+
+    angular_momenta = []
+
+    for i in range(len(verlet_x)):
+        position = np.array([verlet_x[i], verlet_y[i]])
+        velocity = np.array([verlet_vx[i], verlet_vy[i]])
+
+        # angular_momentum = earth_mass * np.cross(position, velocity)
+        angular_momentum = earth_mass * (position[0] * velocity[1] - position[1] * velocity[0])
+        angular_momenta.append(angular_momentum)
+
+    percentage_difference_angular_momentum = ((np.max(angular_momenta) - np.min(angular_momenta)) / abs(np.mean(angular_momenta))) * 100
+
+    print("Percentage difference between maximum and minimum angular momentum:", percentage_difference_angular_momentum, "%")
+
+    if np.isclose(np.max(angular_momenta), np.min(angular_momenta), rtol=1e-10):
+        print("Angular momentum is conserved.")
+    else:
+        print("Angular momentum is not conserved.")
+
+    # Perihelion and Aphelion Momenta (mass cancels out so just rv)
+
+    perihelion_rv = calculated_perihelion_distance * perihelion_velocity
+    aphelion_rv = calculated_aphelion_distance * aphelion_velocity
+
+    if np.isclose(perihelion_rv, aphelion_rv, atol = 1e-10):
+        print("Angular momentum at the two extrema are equal")
+    else:
+        print("Angular momentum at the two extrema are different")
 
     # Convert metres to astronomical units for plotting
 
