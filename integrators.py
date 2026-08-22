@@ -1,6 +1,6 @@
 import numpy as np
 
-from dynamics import calculate_gravitational_force_vector, calculate_acceleration
+from mechanics import calculate_gravitational_force_vector, calculate_acceleration
 
 def update_position(position, velocity, dt):
     return position + velocity * dt
