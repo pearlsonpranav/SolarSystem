@@ -3,9 +3,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from initial_conditions import AU, SUN_MASS, EARTH_MASS, SUN_POSITION, EARTH_INITIAL_POSITION, EARTH_INITIAL_VELOCITY
-from mechanics import calculate_kinetic_energy, calculate_potential_energy, calculate_total_energy, calculate_angular_momentum_2D
-from integrators import simulate_euler, simulate_verlet, simulate_rk4
+from initial_conditions import (AU, SUN_MASS, EARTH_MASS, SUN_POSITION, EARTH_INITIAL_POSITION, EARTH_INITIAL_VELOCITY)
+from mechanics import (calculate_kinetic_energy, calculate_potential_energy, calculate_total_energy, calculate_angular_momentum_2D)
+from integrators import (simulate_euler, simulate_verlet, simulate_rk4)
 
 # Functions
 
@@ -163,11 +163,7 @@ def compare_integrators():
         verlet_energy = calculate_energy_and_angular_momentum(verlet_x, verlet_y, verlet_vx, verlet_vy)
         rk4_energy = calculate_energy_and_angular_momentum(rk4_x, rk4_y, rk4_vx, rk4_vy)
 
-        stability_results[dt] = {
-            "euler": euler_energy,
-            "verlet": verlet_energy,
-            "rk4": rk4_energy
-        }
+        stability_results[dt] = {"euler": euler_energy, "verlet": verlet_energy, "rk4": rk4_energy}
 
     print("Energy and Angular Momentum Variation")
     print("-------------------------------------")

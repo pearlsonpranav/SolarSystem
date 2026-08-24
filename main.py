@@ -3,10 +3,10 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from initial_conditions import (G, AU, SUN_MASS, EARTH_MASS, SUN_POSITION, EARTH_INITIAL_POSITION, EARTH_INITIAL_VELOCITY)
-from mechanics import (calculate_distances_2D, calculate_kinetic_energy, calculate_potential_energy, calculate_total_energy, calculate_escape_velocity, calculate_angular_momentum_2D)
-from integrators import simulate_verlet, simulate_rk4
-from kepler import (calculate_orbital_parameters_2D, calculate_ellipse_centre_2D, check_keplers_first_law_2D, calculate_swept_areas_2D, check_keplers_second_law, find_perihelion_indices_2D, calculate_orbital_period, check_keplers_third_law, calculate_vis_viva_velocity, check_vis_viva, classify_orbit)
+from initial_conditions import (G, AU, SUN_MASS, EARTH_MASS, SUN_POSITION, EARTH_INITIAL_POSITION, SUN_INITIAL_VELOCITY, EARTH_INITIAL_VELOCITY)
+from mechanics import (calculate_distances_2D, calculate_kinetic_energy, calculate_total_kinetic_energy, calculate_potential_energy, calculate_total_potential_energy, calculate_total_energy, calculate_escape_velocity, calculate_angular_momentum_2D, calculate_total_angular_momentum_2D, calculate_centre_of_mass)
+from integrators import simulate_euler, simulate_verlet, simulate_rk4
+from kepler import (calculate_orbital_parameters_2D, calculate_ellipse_centre_2D, check_keplers_first_law_2D, calculate_areal_velocities_2D, check_keplers_second_law, find_perihelion_indices_2D, calculate_orbital_period, check_keplers_third_law, calculate_vis_viva_velocity, check_vis_viva, classify_orbit)
 
 # Functions
 
@@ -35,10 +35,53 @@ def main():
     # Simulation
 
     dt = 10.0
-    simulation_time = 1000 * 24 * 60 * 60
+    simulation_time = 370 * 24 * 60 * 60
     number_of_steps = round(simulation_time / dt)
 
-    rk4_x, rk4_y, rk4_vx, rk4_vy = simulate_rk4(SUN_POSITION, EARTH_INITIAL_POSITION, SUN_MASS, EARTH_MASS, EARTH_INITIAL_VELOCITY, dt, number_of_steps)
+    masses = np.array([SUN_MASS, EARTH_MASS])
+    positions = np.array([SUN_POSITION, EARTH_INITIAL_POSITION])
+    velocities = np.array([SUN_INITIAL_VELOCITY, EARTH_INITIAL_VELOCITY])
+
+    rk4_positions, rk4_velocities = simulate_rk4(masses, positions, velocities, dt, number_of_steps)
+
+    # Barycentres
+
+    barycentres = []
+
+    for i in range(len(rk4_positions)):
+        barycentre = calculate_centre_of_mass(masses, rk4_positions[i])
+        barycentres.append(barycentre)
+
+    barycentres = np.array(barycentres)
+
+    initial_barycentre = barycentres[0]
+    final_barycentre = barycentres[-1]
+
+    barycentre_displacement = np.linalg.norm(final_barycentre - initial_barycentre)
+
+    print("Initial barycentre:", initial_barycentre)
+    print("Final barycentre:", final_barycentre)
+    print("Barycentre displacement:", barycentre_displacement, "m")
+    if np.isclose(barycentre_displacement, 0.0, atol = 1e-5):
+        print("Barycentre is stationary.")
+    else:
+        print("Barycentre is not stationary.")
+
+    initial_barycentre_velocity = calculate_centre_of_mass(masses, velocities)
+    final_barycentre_velocity = calculate_centre_of_mass(masses, rk4_velocities[-1])
+
+    print("Initial barycentre velocity:", initial_barycentre_velocity, "m/s")
+    print("Final barycentre velocity:", final_barycentre_velocity, "m/s")
+
+    # Earth Trajectory
+    
+    earth_positions = rk4_positions[:, 1, :] - rk4_positions[:, 0, :]
+    earth_velocities = rk4_velocities[:, 1, :] - rk4_velocities[:, 0, :]
+
+    rk4_x = earth_positions[:, 0]
+    rk4_y = earth_positions[:, 1]
+    rk4_vx = earth_velocities[:, 0]
+    rk4_vy = earth_velocities[:, 1]
 
     # Orbital Distances
 
@@ -53,20 +96,20 @@ def main():
 
     centre = calculate_ellipse_centre_2D(rk4_x, rk4_y)
 
-    if check_keplers_first_law_2D(centre, SUN_POSITION, semi_major_axis, eccentricity):
+    if check_keplers_first_law_2D(centre, semi_major_axis, eccentricity):
         print("Kepler's First Law is satisfied.")
     else:
         print("Kepler's First Law is not satisfied.")
 
     # Kepler's Second Law
 
-    areas = calculate_swept_areas_2D(rk4_x, rk4_y)
+    areal_velocities = calculate_areal_velocities_2D(rk4_x, rk4_y, rk4_vx, rk4_vy)
 
-    percentage_difference_areas = (np.max(areas) - np.min(areas)) / np.mean(areas) * 100
+    percentage_difference_areal_velocity = (np.max(areal_velocities) - np.min(areal_velocities)) / np.mean(areal_velocities) * 100
 
-    print("Percentage difference between maximum and minimum areas:", percentage_difference_areas, "%")
+    print("Percentage difference between maximum and minimum areal velocity:", percentage_difference_areal_velocity, "%")
 
-    if check_keplers_second_law(areas):
+    if check_keplers_second_law(areal_velocities):
         print("Kepler's Second Law is satisfied.")
     else:
         print("Kepler's Second Law is not satisfied.")
@@ -79,7 +122,7 @@ def main():
 
     print("Measured orbital period:", earth_orbital_period / (60 * 60 * 24), "days")
 
-    if check_keplers_third_law(earth_orbital_period, semi_major_axis, SUN_MASS):
+    if check_keplers_third_law(earth_orbital_period, semi_major_axis, SUN_MASS, EARTH_MASS):
         print("Kepler's Third Law is satisfied.")
     else:
         print("Kepler's Third Law is not satisfied.")
@@ -97,11 +140,14 @@ def main():
 
     # Vis-viva Equation
 
-    theoretical_perihelion_velocity = calculate_vis_viva_velocity(SUN_MASS, perihelion_distance, semi_major_axis)
-    theoretical_aphelion_velocity = calculate_vis_viva_velocity(SUN_MASS, aphelion_distance, semi_major_axis)
+    theoretical_perihelion_velocity = calculate_vis_viva_velocity(SUN_MASS, EARTH_MASS, perihelion_distance, semi_major_axis)
+    theoretical_aphelion_velocity = calculate_vis_viva_velocity(SUN_MASS, EARTH_MASS, aphelion_distance, semi_major_axis)
 
     print("Theoretical Perihelion velocity:", theoretical_perihelion_velocity, "m/s")
     print("Theoretical Aphelion velocity:", theoretical_aphelion_velocity, "m/s")
+
+    print("Perihelion velocity difference:", perihelion_velocity - theoretical_perihelion_velocity, "m/s")
+    print("Aphelion velocity difference:", aphelion_velocity - theoretical_aphelion_velocity, "m/s")
 
     if check_vis_viva(perihelion_velocity, aphelion_velocity, theoretical_perihelion_velocity, theoretical_aphelion_velocity):
         print("Calculated perihelion and aphelion velocities agree with the vis-viva equation.")
@@ -115,11 +161,8 @@ def main():
     total_energies = []
 
     for i in range(len(rk4_x)):
-        position = np.array([rk4_x[i], rk4_y[i]])
-        velocity = np.array([rk4_vx[i], rk4_vy[i]])
-
-        kinetic_energy = calculate_kinetic_energy(EARTH_MASS, velocity)
-        potential_energy = calculate_potential_energy(SUN_MASS, EARTH_MASS, distances[i])
+        kinetic_energy = calculate_total_kinetic_energy(masses, rk4_velocities[i])
+        potential_energy = calculate_total_potential_energy(masses, rk4_positions[i])
         total_energy = calculate_total_energy(kinetic_energy, potential_energy)
 
         kinetic_energies.append(kinetic_energy)
@@ -169,10 +212,7 @@ def main():
     angular_momenta = []
 
     for i in range(len(rk4_x)):
-        position = np.array([rk4_x[i], rk4_y[i]])
-        velocity = np.array([rk4_vx[i], rk4_vy[i]])
-
-        angular_momentum = calculate_angular_momentum_2D(EARTH_MASS, position, velocity)
+        angular_momentum = calculate_total_angular_momentum_2D(masses, rk4_positions[i], rk4_velocities[i])
         angular_momenta.append(angular_momentum)
 
     angular_momenta = np.array(angular_momenta)
