@@ -7,8 +7,8 @@ def calculate_distance(position1, position2):
     distance = np.linalg.norm(displacement)
     return distance
 
-def calculate_distances_2D(x_positions, y_positions):
-    distances = np.sqrt(x_positions ** 2 + y_positions ** 2)
+def calculate_distances(positions):
+    distances = np.linalg.norm(positions, axis=1)
     return distances
 
 def calculate_gravitational_force(mass1, mass2, distance):
@@ -28,17 +28,12 @@ def calculate_acceleration(force, mass):
     return acceleration
 
 def calculate_n_body_accelerations(masses, positions):
-    accelerations = np.zeros_like(positions, dtype=float)
+    displacement = positions[np.newaxis, :, :] - positions[:, np.newaxis, :]
+    distances = np.linalg.norm(displacement, axis=2)
 
-    for i in range(len(masses)):
-        for j in range(len(masses)):
-            if i == j:
-                continue
+    np.fill_diagonal(distances, np.inf)
 
-            displacement = positions[j] - positions[i]
-            distance = np.linalg.norm(displacement)
-
-            accelerations[i] += G * masses[j] * displacement / distance ** 3
+    accelerations = G * np.sum(masses[np.newaxis, :, np.newaxis] * displacement / distances[:, :, np.newaxis] ** 3, axis=1)
 
     return accelerations
 
@@ -74,13 +69,13 @@ def calculate_escape_velocity(mass, distance):
     escape_velocity = np.sqrt(2 * G * mass / distance)
     return escape_velocity
 
-def calculate_angular_momentum_2D(mass, position, velocity):
-    angular_momentum = mass * (position[0] * velocity[1] - position[1] * velocity[0])
+def calculate_angular_momentum(mass, position, velocity):
+    angular_momentum = mass * np.cross(position, velocity)
     return angular_momentum
 
-def calculate_total_angular_momentum_2D(masses, positions, velocities):
-    angular_momenta = masses * (positions[:, 0] * velocities[:, 1] - positions[:, 1] * velocities[:, 0])
-    total_angular_momentum = np.sum(angular_momenta)
+def calculate_total_angular_momentum(masses, positions, velocities):
+    angular_momenta = masses[:, np.newaxis] * np.cross(positions, velocities)
+    total_angular_momentum = np.sum(angular_momenta, axis=0)
     return total_angular_momentum
 
 def calculate_centre_of_mass(masses, positions):

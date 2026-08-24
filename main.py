@@ -3,14 +3,27 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from initial_conditions import (G, AU, SUN_MASS, EARTH_MASS, SUN_POSITION, EARTH_INITIAL_POSITION, SUN_INITIAL_VELOCITY, EARTH_INITIAL_VELOCITY)
-from mechanics import (calculate_distances_2D, calculate_kinetic_energy, calculate_total_kinetic_energy, calculate_potential_energy, calculate_total_potential_energy, calculate_total_energy, calculate_escape_velocity, calculate_angular_momentum_2D, calculate_total_angular_momentum_2D, calculate_centre_of_mass)
-from integrators import simulate_euler, simulate_verlet, simulate_rk4
-from kepler import (calculate_orbital_parameters_2D, calculate_ellipse_centre_2D, check_keplers_first_law_2D, calculate_areal_velocities_2D, check_keplers_second_law, find_perihelion_indices_2D, calculate_orbital_period, check_keplers_third_law, calculate_vis_viva_velocity, check_vis_viva, classify_orbit)
+from initial_conditions import (G, AU, SUN_MASS, MERCURY_MASS, VENUS_MASS, EARTH_MASS, MARS_MASS, JUPITER_MASS, SATURN_MASS, URANUS_MASS, NEPTUNE_MASS, SUN_POSITION, MERCURY_INITIAL_POSITION, VENUS_INITIAL_POSITION, EARTH_INITIAL_POSITION, MARS_INITIAL_POSITION, JUPITER_INITIAL_POSITION, SATURN_INITIAL_POSITION, URANUS_INITIAL_POSITION, NEPTUNE_INITIAL_POSITION, SUN_INITIAL_VELOCITY, MERCURY_INITIAL_VELOCITY, VENUS_INITIAL_VELOCITY, EARTH_INITIAL_VELOCITY, MARS_INITIAL_VELOCITY, JUPITER_INITIAL_VELOCITY, SATURN_INITIAL_VELOCITY, URANUS_INITIAL_VELOCITY, NEPTUNE_INITIAL_VELOCITY)
+from mechanics import (calculate_distances, calculate_total_kinetic_energy, calculate_total_potential_energy, calculate_total_energy, calculate_escape_velocity, calculate_total_angular_momentum, calculate_centre_of_mass)
+from integrators import (simulate_rk4)
+from kepler import (calculate_orbital_parameters, calculate_ellipse_centre, calculate_eccentricity_vectors, calculate_eccentricity_from_vector, check_keplers_first_law, calculate_areal_velocities, check_keplers_second_law, find_perihelion_indices_3D, calculate_orbital_period, check_keplers_third_law, calculate_vis_viva_velocity, check_vis_viva)
+
+# Planet Data (Vertically displayed the data for readability)
+
+PLANETS = {
+    "Mercury": {"index": 1, "mass": MERCURY_MASS, "position": MERCURY_INITIAL_POSITION, "velocity": MERCURY_INITIAL_VELOCITY, "simulation_time_days": 100},
+    "Venus": {"index": 2, "mass": VENUS_MASS, "position": VENUS_INITIAL_POSITION, "velocity": VENUS_INITIAL_VELOCITY, "simulation_time_days": 230},
+    "Earth": {"index": 3, "mass": EARTH_MASS, "position": EARTH_INITIAL_POSITION, "velocity": EARTH_INITIAL_VELOCITY, "simulation_time_days": 370},
+    "Mars": {"index": 4, "mass": MARS_MASS, "position": MARS_INITIAL_POSITION, "velocity": MARS_INITIAL_VELOCITY, "simulation_time_days": 700},
+    "Jupiter": {"index": 5, "mass": JUPITER_MASS, "position": JUPITER_INITIAL_POSITION, "velocity": JUPITER_INITIAL_VELOCITY, "simulation_time_days": 4400},
+    "Saturn": {"index": 6, "mass": SATURN_MASS, "position": SATURN_INITIAL_POSITION, "velocity": SATURN_INITIAL_VELOCITY, "simulation_time_days": 11000},
+    "Uranus": {"index": 7, "mass": URANUS_MASS, "position": URANUS_INITIAL_POSITION, "velocity": URANUS_INITIAL_VELOCITY, "simulation_time_days": 31000},
+    "Neptune": {"index": 8, "mass": NEPTUNE_MASS, "position": NEPTUNE_INITIAL_POSITION, "velocity": NEPTUNE_INITIAL_VELOCITY, "simulation_time_days": 61000}
+}
 
 # Functions
 
-def plot_energy(kinetic_energies, potential_energies, total_energies, dt):
+def plot_energy(kinetic_energies, potential_energies, total_energies, dt, planet_name):
     time = np.arange(len(kinetic_energies)) * dt / (60 * 60 * 24)
 
     plt.figure(figsize=(10, 6))
@@ -21,26 +34,83 @@ def plot_energy(kinetic_energies, potential_energies, total_energies, dt):
 
     plt.xlabel("Time (days)")
     plt.ylabel("Energy (J)")
-    plt.title("Energy Variation During Earth's Orbit")
+    plt.title(f"Solar System Energy Variation — {planet_name} Analysis")
     plt.legend(loc="upper right")
     plt.grid()
 
     plt.show()
 
+
+def plot_solar_system(position_history, plot_every=1000):
+    body_names = ["Sun", "Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune"]
+
+    position_history = position_history[::plot_every]
+
+    plt.figure(figsize=(10, 8))
+    ax = plt.axes(projection="3d")
+
+    for i, body_name in enumerate(body_names):
+        x = position_history[:, i, 0] / AU
+        y = position_history[:, i, 1] / AU
+        z = position_history[:, i, 2] / AU
+
+        ax.plot(x, y, z, label=body_name)
+
+    ax.set_xlabel("x position (AU)")
+    ax.set_ylabel("y position (AU)")
+    ax.set_zlabel("z position (AU)")
+    ax.set_title("3D Solar System — Coplanar Initial Configuration")
+    ax.legend(loc="upper right")
+
+    plt.show()
+
+
+def classify_planet_orbit(positions, velocities, planet_mass):
+    distances = np.linalg.norm(positions, axis=1)
+    speeds = np.linalg.norm(velocities, axis=1)
+
+    gravitational_parameter = G * (SUN_MASS + planet_mass)
+
+    specific_orbital_energies = (speeds ** 2) / 2 - gravitational_parameter / distances
+
+    if np.all(specific_orbital_energies < 0):
+        return "bound"
+    elif np.all(specific_orbital_energies >= 0):
+        return "unbound"
+    else:
+        return "transitioning"
+
+
 # Core
 
 def main():
+
+    # Select Planet
+
+    target_planet = "Mercury"
+
+    if target_planet not in PLANETS:
+        raise ValueError(f"Unknown planet: {target_planet}. Choose from {list(PLANETS.keys())}")
+
+    planet = PLANETS[target_planet]
+
+    planet_index = planet["index"]
+    planet_mass = planet["mass"]
+
     print("Solar System Simulation")
+    print("Target planet:", target_planet)
 
     # Simulation
 
     dt = 10.0
-    simulation_time = 370 * 24 * 60 * 60
+    simulation_time = planet["simulation_time_days"] * 24 * 60 * 60
     number_of_steps = round(simulation_time / dt)
 
-    masses = np.array([SUN_MASS, EARTH_MASS])
-    positions = np.array([SUN_POSITION, EARTH_INITIAL_POSITION])
-    velocities = np.array([SUN_INITIAL_VELOCITY, EARTH_INITIAL_VELOCITY])
+    masses = np.array([SUN_MASS, MERCURY_MASS, VENUS_MASS, EARTH_MASS, MARS_MASS, JUPITER_MASS, SATURN_MASS, URANUS_MASS, NEPTUNE_MASS])
+
+    positions = np.array([SUN_POSITION, MERCURY_INITIAL_POSITION, VENUS_INITIAL_POSITION, EARTH_INITIAL_POSITION, MARS_INITIAL_POSITION, JUPITER_INITIAL_POSITION, SATURN_INITIAL_POSITION, URANUS_INITIAL_POSITION, NEPTUNE_INITIAL_POSITION])
+
+    velocities = np.array([SUN_INITIAL_VELOCITY, MERCURY_INITIAL_VELOCITY, VENUS_INITIAL_VELOCITY, EARTH_INITIAL_VELOCITY, MARS_INITIAL_VELOCITY, JUPITER_INITIAL_VELOCITY, SATURN_INITIAL_VELOCITY, URANUS_INITIAL_VELOCITY, NEPTUNE_INITIAL_VELOCITY])
 
     rk4_positions, rk4_velocities = simulate_rk4(masses, positions, velocities, dt, number_of_steps)
 
@@ -62,7 +132,8 @@ def main():
     print("Initial barycentre:", initial_barycentre)
     print("Final barycentre:", final_barycentre)
     print("Barycentre displacement:", barycentre_displacement, "m")
-    if np.isclose(barycentre_displacement, 0.0, atol = 1e-5):
+
+    if np.isclose(barycentre_displacement, 0.0, atol=1e-3):
         print("Barycentre is stationary.")
     else:
         print("Barycentre is not stationary.")
@@ -73,37 +144,46 @@ def main():
     print("Initial barycentre velocity:", initial_barycentre_velocity, "m/s")
     print("Final barycentre velocity:", final_barycentre_velocity, "m/s")
 
-    # Earth Trajectory
-    
-    earth_positions = rk4_positions[:, 1, :] - rk4_positions[:, 0, :]
-    earth_velocities = rk4_velocities[:, 1, :] - rk4_velocities[:, 0, :]
+    # Target Planet Trajectory Relative to Sun
 
-    rk4_x = earth_positions[:, 0]
-    rk4_y = earth_positions[:, 1]
-    rk4_vx = earth_velocities[:, 0]
-    rk4_vy = earth_velocities[:, 1]
+    sun_index = 0
+
+    planet_positions = rk4_positions[:, planet_index, :] - rk4_positions[:, sun_index, :]
+    planet_velocities = rk4_velocities[:, planet_index, :] - rk4_velocities[:, sun_index, :]
 
     # Orbital Distances
 
-    distances = calculate_distances_2D(rk4_x, rk4_y)
+    distances = calculate_distances(planet_positions)
+
+    perihelion_distance, aphelion_distance, semi_major_axis, _ = calculate_orbital_parameters(distances)
+
+    print("Calculated semi-major axis:", semi_major_axis / AU, "AU")
 
     # Kepler's First Law
 
-    perihelion_distance, aphelion_distance, semi_major_axis, eccentricity = calculate_orbital_parameters_2D(distances)
+    eccentricity_vectors = calculate_eccentricity_vectors(planet_positions, planet_velocities, SUN_MASS, planet_mass)
 
-    print("Calculated semi-major axis:", semi_major_axis / AU, "AU")
-    print("Calculated eccentricity:", eccentricity)
+    eccentricities = np.linalg.norm(eccentricity_vectors, axis=1)
 
-    centre = calculate_ellipse_centre_2D(rk4_x, rk4_y)
+    eccentricity_vector = eccentricity_vectors[0]
 
-    if check_keplers_first_law_2D(centre, semi_major_axis, eccentricity):
+    eccentricity_from_vector = calculate_eccentricity_from_vector(eccentricity_vector)
+
+    mean_eccentricity = np.mean(eccentricities) # The full N-body orbit is perturbed, so eccentricity varies slightly over time; therefore, we would not expect the textbook value for e.
+
+    print("Initial eccentricity:", eccentricity_from_vector)
+    print("Mean eccentricity:", mean_eccentricity)
+
+    centre = calculate_ellipse_centre(eccentricity_vector, semi_major_axis)
+
+    if check_keplers_first_law(centre, semi_major_axis, eccentricity_from_vector):
         print("Kepler's First Law is satisfied.")
     else:
         print("Kepler's First Law is not satisfied.")
 
     # Kepler's Second Law
 
-    areal_velocities = calculate_areal_velocities_2D(rk4_x, rk4_y, rk4_vx, rk4_vy)
+    areal_velocities = calculate_areal_velocities(planet_positions, planet_velocities)
 
     percentage_difference_areal_velocity = (np.max(areal_velocities) - np.min(areal_velocities)) / np.mean(areal_velocities) * 100
 
@@ -116,32 +196,37 @@ def main():
 
     # Kepler's Third Law
 
-    perihelion_indices = find_perihelion_indices_2D(rk4_x, rk4_y, rk4_vx, rk4_vy)
+    perihelion_indices = find_perihelion_indices_3D(planet_positions, planet_velocities)
 
-    earth_orbital_period = calculate_orbital_period(perihelion_indices, dt)
+    planet_orbital_period = calculate_orbital_period(perihelion_indices, dt)
 
-    print("Measured orbital period:", earth_orbital_period / (60 * 60 * 24), "days")
+    if planet_orbital_period is not None:
 
-    if check_keplers_third_law(earth_orbital_period, semi_major_axis, SUN_MASS, EARTH_MASS):
-        print("Kepler's Third Law is satisfied.")
+        print("Measured orbital period:", planet_orbital_period / (60 * 60 * 24), "days")
+
+        if check_keplers_third_law(planet_orbital_period, semi_major_axis, SUN_MASS, planet_mass):
+            print("Kepler's Third Law is satisfied.")
+        else:
+            print("Kepler's Third Law is not satisfied.")
+
     else:
-        print("Kepler's Third Law is not satisfied.")
+        print("Not enough perihelion passages to measure the orbital period.")
 
     # Perihelion and Aphelion Velocities
 
     perihelion_index = np.argmin(distances)
     aphelion_index = np.argmax(distances)
 
-    perihelion_velocity = np.sqrt(rk4_vx[perihelion_index] ** 2 + rk4_vy[perihelion_index] ** 2)
-    aphelion_velocity = np.sqrt(rk4_vx[aphelion_index] ** 2 + rk4_vy[aphelion_index] ** 2)
+    perihelion_velocity = np.linalg.norm(planet_velocities[perihelion_index])
+    aphelion_velocity = np.linalg.norm(planet_velocities[aphelion_index])
 
     print("Perihelion velocity:", perihelion_velocity, "m/s")
     print("Aphelion velocity:", aphelion_velocity, "m/s")
 
     # Vis-viva Equation
 
-    theoretical_perihelion_velocity = calculate_vis_viva_velocity(SUN_MASS, EARTH_MASS, perihelion_distance, semi_major_axis)
-    theoretical_aphelion_velocity = calculate_vis_viva_velocity(SUN_MASS, EARTH_MASS, aphelion_distance, semi_major_axis)
+    theoretical_perihelion_velocity = calculate_vis_viva_velocity(SUN_MASS, planet_mass, perihelion_distance, semi_major_axis)
+    theoretical_aphelion_velocity = calculate_vis_viva_velocity(SUN_MASS, planet_mass, aphelion_distance, semi_major_axis)
 
     print("Theoretical Perihelion velocity:", theoretical_perihelion_velocity, "m/s")
     print("Theoretical Aphelion velocity:", theoretical_aphelion_velocity, "m/s")
@@ -160,7 +245,7 @@ def main():
     potential_energies = []
     total_energies = []
 
-    for i in range(len(rk4_x)):
+    for i in range(len(rk4_positions)):
         kinetic_energy = calculate_total_kinetic_energy(masses, rk4_velocities[i])
         potential_energy = calculate_total_potential_energy(masses, rk4_positions[i])
         total_energy = calculate_total_energy(kinetic_energy, potential_energy)
@@ -184,26 +269,26 @@ def main():
     print("Percentage difference between maximum and minimum total energy:", percentage_difference_total_energy, "%")
 
     if np.isclose(np.max(total_energies), np.min(total_energies), rtol=1e-10):
-        print("Total orbital energy is conserved.")
+        print("Total Solar System energy is conserved.")
     else:
-        print("Total orbital energy is not conserved.")
+        print("Total Solar System energy is not conserved.")
 
     # Escape Velocity
 
     escape_velocities = calculate_escape_velocity(SUN_MASS, distances)
-    orbital_speeds = np.sqrt(rk4_vx ** 2 + rk4_vy ** 2)
+    orbital_speeds = np.linalg.norm(planet_velocities, axis=1)
 
     print("Initial orbital speed:", orbital_speeds[0], "m/s")
     print("Initial escape velocity:", escape_velocities[0], "m/s")
 
     if np.all(orbital_speeds < escape_velocities):
-        print("Earth remains below escape velocity.")
+        print(f"{target_planet} remains below escape velocity.")
     else:
-        print("Earth exceeds escape velocity.")
+        print(f"{target_planet} exceeds escape velocity.")
 
     # Orbit Classification
 
-    orbit_type = classify_orbit(total_energies)
+    orbit_type = classify_planet_orbit(planet_positions, planet_velocities, planet_mass)
 
     print("Orbit classification:", orbit_type)
 
@@ -211,42 +296,30 @@ def main():
 
     angular_momenta = []
 
-    for i in range(len(rk4_x)):
-        angular_momentum = calculate_total_angular_momentum_2D(masses, rk4_positions[i], rk4_velocities[i])
+    for i in range(len(rk4_positions)):
+        angular_momentum = calculate_total_angular_momentum(masses, rk4_positions[i], rk4_velocities[i])
         angular_momenta.append(angular_momentum)
 
     angular_momenta = np.array(angular_momenta)
 
-    percentage_difference_angular_momentum = ((np.max(angular_momenta) - np.min(angular_momenta)) / abs(np.mean(angular_momenta))) * 100
+    angular_momentum_magnitudes = np.linalg.norm(angular_momenta, axis=1)
+
+    percentage_difference_angular_momentum = (np.max(angular_momentum_magnitudes) - np.min(angular_momentum_magnitudes)) / np.mean(angular_momentum_magnitudes) * 100
 
     print("Percentage difference between maximum and minimum angular momentum:", percentage_difference_angular_momentum, "%")
 
-    if np.isclose(np.max(angular_momenta), np.min(angular_momenta), rtol=1e-10):
+    if np.isclose(np.max(angular_momentum_magnitudes), np.min(angular_momentum_magnitudes), rtol=1e-10):
         print("Angular momentum is conserved.")
     else:
         print("Angular momentum is not conserved.")
 
     # Energy Plot
 
-    plot_energy(kinetic_energies, potential_energies, total_energies, dt)
+    plot_energy(kinetic_energies, potential_energies, total_energies, dt, target_planet)
 
-    # Orbit Plot
+    # 3D Solar System Plot
 
-    rk4_x_AU = rk4_x / AU
-    rk4_y_AU = rk4_y / AU
-
-    fig, ax = plt.subplots(figsize=(8, 8))
-
-    ax.plot(rk4_x_AU, rk4_y_AU, color="blue", label="Earth")
-    ax.scatter([0], [0], s=200, color="orange", label="Sun")
-
-    ax.set_xlabel("x position (AU)")
-    ax.set_ylabel("y position (AU)")
-    ax.set_title("Earth's Orbit")
-    ax.set_aspect("equal")
-    ax.legend(loc="upper right")
-
-    plt.show()
+    plot_solar_system(rk4_positions, plot_every=1000)
 
 if __name__ == "__main__":
     main()

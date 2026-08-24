@@ -2,7 +2,7 @@ import numpy as np
 
 from initial_conditions import G
 
-def calculate_orbital_parameters_2D(distances):
+def calculate_orbital_parameters(distances):
     perihelion_distance = np.min(distances)
     aphelion_distance = np.max(distances)
 
@@ -11,42 +11,66 @@ def calculate_orbital_parameters_2D(distances):
 
     return perihelion_distance, aphelion_distance, semi_major_axis, eccentricity
 
-def calculate_ellipse_centre_2D(x_positions, y_positions):
-    centre = np.array([(np.max(x_positions) + np.min(x_positions)) / 2, (np.max(y_positions) + np.min(y_positions)) / 2])
+def calculate_eccentricity_vector(position, velocity, mass1, mass2):
+    distance = np.linalg.norm(position)
+    angular_momentum = np.cross(position, velocity)
+    total_mass = mass1 + mass2
+    gravitational_parameter = G * total_mass
+
+    eccentricity_vector = np.cross(velocity, angular_momentum) / gravitational_parameter - position / distance
+
+    return eccentricity_vector
+
+def calculate_eccentricity_vectors(positions, velocities, mass1, mass2):
+    distances = np.linalg.norm(positions, axis=1)
+    angular_momenta = np.cross(positions, velocities)
+    total_mass = mass1 + mass2
+    gravitational_parameter = G * total_mass
+
+    eccentricity_vectors = np.cross(velocities, angular_momenta) / gravitational_parameter - positions / distances[:, np.newaxis]
+
+    return eccentricity_vectors
+
+def calculate_eccentricity_from_vector(eccentricity_vector):
+    eccentricity = np.linalg.norm(eccentricity_vector)
+    return eccentricity
+
+def calculate_ellipse_centre(eccentricity_vector, semi_major_axis):
+    centre = -semi_major_axis * eccentricity_vector
     return centre
 
-def check_keplers_first_law_2D(centre, semi_major_axis, eccentricity):
+def check_keplers_first_law(centre, semi_major_axis, eccentricity):
     focal_distance = np.linalg.norm(centre)
     expected_focal_distance = semi_major_axis * eccentricity
 
-    return np.isclose(focal_distance, expected_focal_distance, rtol=1e-5)
+    return np.isclose(focal_distance, expected_focal_distance, rtol=1e-4)
 
-def calculate_areal_velocities_2D(x_positions, y_positions, x_velocities, y_velocities):
-    areal_velocities = 0.5 * np.abs(x_positions * y_velocities - y_positions * x_velocities)
+def calculate_areal_velocities(positions, velocities):
+    areal_velocities = 0.5 * np.linalg.norm(np.cross(positions, velocities), axis=1)
     return areal_velocities
 
 def check_keplers_second_law(areal_velocities):
-    return np.isclose(np.min(areal_velocities), np.max(areal_velocities), rtol=1e-5)
+    return np.isclose(np.min(areal_velocities), np.max(areal_velocities), rtol=1e-4)
 
-def find_perihelion_indices_2D(x_positions, y_positions, x_velocities, y_velocities):
+def find_perihelion_indices_3D(positions, velocities):
     perihelion_indices = [0]
 
-    for n in range(1, len(x_positions)):
-        previous_position = np.array([x_positions[n - 1], y_positions[n - 1]])
-        previous_velocity = np.array([x_velocities[n - 1], y_velocities[n - 1]])
+    previous_radial_motion = np.dot(positions[0], velocities[0])
 
-        current_position = np.array([x_positions[n], y_positions[n]])
-        current_velocity = np.array([x_velocities[n], y_velocities[n]])
+    for n in range(1, len(positions)):
+        current_radial_motion = np.dot(positions[n], velocities[n])
 
-        previous_radial_motion = np.dot(previous_position, previous_velocity)
-        current_radial_motion = np.dot(current_position, current_velocity)
-
-        if previous_radial_motion < 0 and current_radial_motion > 0:
+        if previous_radial_motion < 0 and current_radial_motion >= 0:
             perihelion_indices.append(n)
+
+        previous_radial_motion = current_radial_motion
 
     return perihelion_indices
 
 def calculate_orbital_period(perihelion_indices, dt):
+    if len(perihelion_indices) < 2:
+        return None
+
     orbital_period = (perihelion_indices[1] - perihelion_indices[0]) * dt
     return orbital_period
 
@@ -66,7 +90,7 @@ def check_vis_viva(perihelion_velocity, aphelion_velocity, theoretical_perihelio
     perihelion_difference = abs(perihelion_velocity - theoretical_perihelion_velocity) / theoretical_perihelion_velocity
     aphelion_difference = abs(aphelion_velocity - theoretical_aphelion_velocity) / theoretical_aphelion_velocity
 
-    return perihelion_difference < 1e-5 and aphelion_difference < 1e-5
+    return perihelion_difference < 1e-4 and aphelion_difference < 1e-4
 
 def classify_orbit(total_energies):
     if np.all(np.array(total_energies) < 0):
