@@ -78,6 +78,11 @@ def calculate_total_angular_momentum(masses, positions, velocities):
     total_angular_momentum = np.sum(angular_momenta, axis=0)
     return total_angular_momentum
 
+def calculate_unit_orbital_normal(position, velocity):
+    specific_angular_momentum = np.cross(position, velocity)
+    unit_orbital_normal = specific_angular_momentum / np.linalg.norm(specific_angular_momentum)
+    return unit_orbital_normal
+
 def calculate_centre_of_mass(masses, positions):
     total_mass = np.sum(masses)
     centre_of_mass = np.sum(masses[:, np.newaxis] * positions, axis=0) / total_mass

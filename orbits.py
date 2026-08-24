@@ -1,6 +1,7 @@
 import numpy as np
 
 from initial_conditions import G
+from mechanics import calculate_unit_orbital_normal
 
 def calculate_orbital_parameters(distances):
     perihelion_distance = np.min(distances)
@@ -52,7 +53,7 @@ def calculate_areal_velocities(positions, velocities):
 def check_keplers_second_law(areal_velocities):
     return np.isclose(np.min(areal_velocities), np.max(areal_velocities), rtol=1e-4)
 
-def find_perihelion_indices_3D(positions, velocities):
+def find_perihelion_indices(positions, velocities):
     perihelion_indices = [0]
 
     previous_radial_motion = np.dot(positions[0], velocities[0])
@@ -92,10 +93,30 @@ def check_vis_viva(perihelion_velocity, aphelion_velocity, theoretical_perihelio
 
     return perihelion_difference < 1e-4 and aphelion_difference < 1e-4
 
-def classify_orbit(total_energies):
-    if np.all(np.array(total_energies) < 0):
+def calculate_specific_orbital_energy(position, velocity, mass1, mass2):
+    distance = np.linalg.norm(position, axis=-1)
+    speed = np.linalg.norm(velocity, axis=-1)
+    gravitational_parameter = G * (mass1 + mass2)
+
+    specific_orbital_energy = speed ** 2 / 2 - gravitational_parameter / distance
+
+    return specific_orbital_energy
+
+def classify_orbit(specific_orbital_energies):
+    if np.all(specific_orbital_energies < 0):
         return "bound"
-    elif np.all(np.isclose(total_energies, 0)):
+    elif np.all(np.isclose(specific_orbital_energies, 0)):
         return "escape boundary"
     else:
         return "unbound"
+    
+def calculate_inclination(position, velocity, reference_normal):
+    unit_orbital_normal = calculate_unit_orbital_normal(position, velocity)
+    unit_reference_normal = reference_normal / np.linalg.norm(reference_normal)
+
+    cosine_inclination = np.dot(unit_orbital_normal, unit_reference_normal)
+    cosine_inclination = np.clip(cosine_inclination, -1.0, 1.0)
+
+    inclination = np.arccos(cosine_inclination)
+
+    return inclination

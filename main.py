@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from initial_conditions import (G, AU, SUN_MASS, MERCURY_MASS, VENUS_MASS, EARTH_MASS, MARS_MASS, JUPITER_MASS, SATURN_MASS, URANUS_MASS, NEPTUNE_MASS, SUN_POSITION, MERCURY_INITIAL_POSITION, VENUS_INITIAL_POSITION, EARTH_INITIAL_POSITION, MARS_INITIAL_POSITION, JUPITER_INITIAL_POSITION, SATURN_INITIAL_POSITION, URANUS_INITIAL_POSITION, NEPTUNE_INITIAL_POSITION, SUN_INITIAL_VELOCITY, MERCURY_INITIAL_VELOCITY, VENUS_INITIAL_VELOCITY, EARTH_INITIAL_VELOCITY, MARS_INITIAL_VELOCITY, JUPITER_INITIAL_VELOCITY, SATURN_INITIAL_VELOCITY, URANUS_INITIAL_VELOCITY, NEPTUNE_INITIAL_VELOCITY)
 from mechanics import (calculate_distances, calculate_total_kinetic_energy, calculate_total_potential_energy, calculate_total_energy, calculate_escape_velocity, calculate_total_angular_momentum, calculate_centre_of_mass)
 from integrators import (simulate_rk4)
-from kepler import (calculate_orbital_parameters, calculate_ellipse_centre, calculate_eccentricity_vectors, calculate_eccentricity_from_vector, check_keplers_first_law, calculate_areal_velocities, check_keplers_second_law, find_perihelion_indices_3D, calculate_orbital_period, check_keplers_third_law, calculate_vis_viva_velocity, check_vis_viva)
+from kepler import (calculate_orbital_parameters, calculate_ellipse_centre, calculate_eccentricity_vectors, calculate_eccentricity_from_vector, check_keplers_first_law, calculate_areal_velocities, check_keplers_second_law, find_perihelion_indices, calculate_orbital_period, check_keplers_third_law, calculate_vis_viva_velocity, check_vis_viva, calculate_specific_orbital_energy, classify_orbit, calculate_inclination)
 
 # Planet Data (Vertically displayed the data for readability)
 
@@ -19,7 +19,7 @@ PLANETS = {
     "Saturn": {"index": 6, "mass": SATURN_MASS, "position": SATURN_INITIAL_POSITION, "velocity": SATURN_INITIAL_VELOCITY, "simulation_time_days": 11000},
     "Uranus": {"index": 7, "mass": URANUS_MASS, "position": URANUS_INITIAL_POSITION, "velocity": URANUS_INITIAL_VELOCITY, "simulation_time_days": 31000},
     "Neptune": {"index": 8, "mass": NEPTUNE_MASS, "position": NEPTUNE_INITIAL_POSITION, "velocity": NEPTUNE_INITIAL_VELOCITY, "simulation_time_days": 61000}
-}
+    }
 
 # Functions
 
@@ -59,27 +59,10 @@ def plot_solar_system(position_history, plot_every=1000):
     ax.set_xlabel("x position (AU)")
     ax.set_ylabel("y position (AU)")
     ax.set_zlabel("z position (AU)")
-    ax.set_title("3D Solar System — Coplanar Initial Configuration")
+    ax.set_title("3D Solar System — Non-Coplanar Orbits")
     ax.legend(loc="upper right")
 
     plt.show()
-
-
-def classify_planet_orbit(positions, velocities, planet_mass):
-    distances = np.linalg.norm(positions, axis=1)
-    speeds = np.linalg.norm(velocities, axis=1)
-
-    gravitational_parameter = G * (SUN_MASS + planet_mass)
-
-    specific_orbital_energies = (speeds ** 2) / 2 - gravitational_parameter / distances
-
-    if np.all(specific_orbital_energies < 0):
-        return "bound"
-    elif np.all(specific_orbital_energies >= 0):
-        return "unbound"
-    else:
-        return "transitioning"
-
 
 # Core
 
@@ -87,7 +70,7 @@ def main():
 
     # Select Planet
 
-    target_planet = "Mercury"
+    target_planet = "Earth"
 
     if target_planet not in PLANETS:
         raise ValueError(f"Unknown planet: {target_planet}. Choose from {list(PLANETS.keys())}")
@@ -159,6 +142,16 @@ def main():
 
     print("Calculated semi-major axis:", semi_major_axis / AU, "AU")
 
+    # Orbital Inclination
+
+    REFERENCE_NORMAL = np.array([0.0, 0.0, 1.0])
+
+    initial_inclination = calculate_inclination(planet_positions[0], planet_velocities[0], REFERENCE_NORMAL)
+    final_inclination = calculate_inclination(planet_positions[-1], planet_velocities[-1], REFERENCE_NORMAL)
+
+    print("Initial orbital inclination:", np.rad2deg(initial_inclination), "degrees")
+    print("Final orbital inclination:", np.rad2deg(final_inclination), "degrees")
+
     # Kepler's First Law
 
     eccentricity_vectors = calculate_eccentricity_vectors(planet_positions, planet_velocities, SUN_MASS, planet_mass)
@@ -196,7 +189,7 @@ def main():
 
     # Kepler's Third Law
 
-    perihelion_indices = find_perihelion_indices_3D(planet_positions, planet_velocities)
+    perihelion_indices = find_perihelion_indices(planet_positions, planet_velocities)
 
     planet_orbital_period = calculate_orbital_period(perihelion_indices, dt)
 
@@ -288,7 +281,9 @@ def main():
 
     # Orbit Classification
 
-    orbit_type = classify_planet_orbit(planet_positions, planet_velocities, planet_mass)
+    specific_orbital_energies = calculate_specific_orbital_energy(planet_positions, planet_velocities, SUN_MASS, planet_mass)
+
+    orbit_type = classify_orbit(specific_orbital_energies)
 
     print("Orbit classification:", orbit_type)
 
