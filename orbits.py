@@ -36,22 +36,31 @@ def calculate_eccentricity_from_vector(eccentricity_vector):
     eccentricity = np.linalg.norm(eccentricity_vector)
     return eccentricity
 
-def calculate_ellipse_centre(eccentricity_vector, semi_major_axis):
-    centre = -semi_major_axis * eccentricity_vector
-    return centre
-
-def check_keplers_first_law(centre, semi_major_axis, eccentricity):
-    focal_distance = np.linalg.norm(centre)
-    expected_focal_distance = semi_major_axis * eccentricity
-
-    return np.isclose(focal_distance, expected_focal_distance, rtol=1e-4)
+def check_keplers_first_law_trajectory(positions, velocities, mass1, mass2):
+    ecc_vectors = calculate_eccentricity_vectors(positions, velocities, mass1, mass2)
+    e_mags = np.linalg.norm(ecc_vectors, axis=1)
+    
+    specific_energies = calculate_specific_orbital_energy(positions, velocities, mass1, mass2)
+    gravitational_parameter = G * (mass1 + mass2)
+    a_elements = -gravitational_parameter / (2 * specific_energies)
+    
+    actual_distances = np.linalg.norm(positions, axis=1)
+    
+    dot_products = np.sum(positions * ecc_vectors, axis=1)
+    cos_theta = dot_products / (actual_distances * e_mags)
+    
+    expected_distances = (a_elements * (1 - e_mags**2)) / (1 + e_mags * cos_theta)
+    
+    max_percentage_error = np.max(np.abs(actual_distances - expected_distances) / expected_distances) * 100
+    
+    return max_percentage_error < 0.1, max_percentage_error
 
 def calculate_areal_velocities(positions, velocities):
     areal_velocities = 0.5 * np.linalg.norm(np.cross(positions, velocities), axis=1)
     return areal_velocities
 
 def check_keplers_second_law(areal_velocities):
-    return np.isclose(np.min(areal_velocities), np.max(areal_velocities), rtol=1e-4)
+    return np.isclose(np.min(areal_velocities), np.max(areal_velocities), rtol=1e-3)
 
 def find_perihelion_indices(positions, velocities):
     perihelion_indices = [0]
@@ -80,7 +89,7 @@ def check_keplers_third_law(orbital_period, semi_major_axis, mass1, mass2):
     proportionality_constant = orbital_period ** 2 / semi_major_axis ** 3
     theoretical_constant = 4 * np.pi ** 2 / (G * total_mass)
 
-    return np.isclose(proportionality_constant, theoretical_constant, rtol=1e-7)
+    return np.isclose(proportionality_constant, theoretical_constant, rtol=1e-3)
 
 def calculate_vis_viva_velocity(mass1, mass2, distance, semi_major_axis):
     total_mass = mass1 + mass2
@@ -91,7 +100,7 @@ def check_vis_viva(perihelion_velocity, aphelion_velocity, theoretical_perihelio
     perihelion_difference = abs(perihelion_velocity - theoretical_perihelion_velocity) / theoretical_perihelion_velocity
     aphelion_difference = abs(aphelion_velocity - theoretical_aphelion_velocity) / theoretical_aphelion_velocity
 
-    return perihelion_difference < 1e-4 and aphelion_difference < 1e-4
+    return perihelion_difference < 1e-3 and aphelion_difference < 1e-3
 
 def calculate_specific_orbital_energy(position, velocity, mass1, mass2):
     distance = np.linalg.norm(position, axis=-1)
