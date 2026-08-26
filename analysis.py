@@ -19,7 +19,7 @@ PLANETS = {
     "Saturn": {"index": 6, "mass": SATURN_MASS, "simulation_time_days": 11000, "recommended_dt": 1000},
     "Uranus": {"index": 7, "mass": URANUS_MASS, "simulation_time_days": 31000, "recommended_dt": 1000},
     "Neptune": {"index": 8, "mass": NEPTUNE_MASS, "simulation_time_days": 61000, "recommended_dt": 1000}
-    }
+}
 
 # Solar System Data
 
@@ -32,6 +32,18 @@ INITIAL_VELOCITIES = np.array([SUN_INITIAL_VELOCITY, MERCURY_INITIAL_VELOCITY, V
 # Integrators
 
 INTEGRATORS = {"euler": simulate_euler, "verlet": simulate_verlet, "rk4": simulate_rk4}
+
+# Statistics
+
+def calculate_statistics(values):
+
+    values = np.asarray(values)
+
+    mean_value = np.mean(values, axis=0)
+    minimum_value = np.min(values, axis=0)
+    maximum_value = np.max(values, axis=0)
+
+    return mean_value, minimum_value, maximum_value
 
 # Simulation
 
@@ -75,6 +87,7 @@ def choose_planet():
 
         print("Invalid planet. Please choose from the list above.")
 
+
 def choose_integrator():
 
     print("\nAvailable integrators:")
@@ -89,6 +102,7 @@ def choose_integrator():
             return choice
 
         print("Invalid integrator. Please enter Euler, Verlet or RK4.")
+
 
 def choose_dt(target_planet):
 
@@ -159,35 +173,6 @@ def main():
     print("Number of steps:", len(positions) - 1)
     print("Bodies simulated:", len(MASSES))
 
-    # Barycentre
-
-    barycentres = []
-
-    for position in positions:
-        barycentres.append(calculate_centre_of_mass(MASSES, position))
-
-    barycentres = np.array(barycentres)
-
-    initial_barycentre = barycentres[0]
-    final_barycentre = barycentres[-1]
-
-    barycentre_displacement = np.linalg.norm(final_barycentre - initial_barycentre)
-
-    print("\nInitial barycentre:", initial_barycentre)
-    print("Final barycentre:", final_barycentre)
-    print("Barycentre displacement:", barycentre_displacement, "m")
-
-    if np.isclose(barycentre_displacement, 0.0, atol=1e-3):
-        print("Barycentre is stationary.")
-    else:
-        print("Barycentre is not stationary.")
-
-    initial_barycentre_velocity = calculate_centre_of_mass(MASSES, velocities[0])
-    final_barycentre_velocity = calculate_centre_of_mass(MASSES, velocities[-1])
-
-    print("Initial barycentre velocity:", initial_barycentre_velocity, "m/s")
-    print("Final barycentre velocity:", final_barycentre_velocity, "m/s")
-
     # Target Planet Trajectory Relative to Sun
 
     planet_positions = positions[:, planet_index, :] - positions[:, 0, :]
@@ -205,28 +190,71 @@ def main():
 
     reference_normal = np.array([0.0, 0.0, 1.0])
 
-    initial_inclination = calculate_inclination(planet_positions[0], planet_velocities[0], reference_normal)
-    final_inclination = calculate_inclination(planet_positions[-1], planet_velocities[-1], reference_normal)
+    inclinations = []
 
-    print("Initial orbital inclination:", np.rad2deg(initial_inclination), "degrees")
-    print("Final orbital inclination:", np.rad2deg(final_inclination), "degrees")
+    for position, velocity in zip(planet_positions, planet_velocities):
+        inclinations.append(calculate_inclination(position, velocity, reference_normal))
+
+    inclinations = np.array(inclinations)
+
+    mean_inclination, min_inclination, max_inclination = calculate_statistics(inclinations)
+
+    mean_inclination = np.rad2deg(mean_inclination)
+    min_inclination = np.rad2deg(min_inclination)
+    max_inclination = np.rad2deg(max_inclination)
+
+    print(f"Mean orbital inclination: {mean_inclination} degrees [Min: {min_inclination}, Max: {max_inclination}]")
+
+    if np.isclose(min_inclination, max_inclination, rtol=1e-3):
+        print("Orbital inclination is consistent throughout the orbit.")
+    else:
+        print("Orbital inclination is not consistent throughout the orbit.")
+
+    # Barycentre Analysis
+
+    barycentres = []
+
+    for position in positions:
+        barycentres.append(calculate_centre_of_mass(MASSES, position))
+
+    barycentres = np.array(barycentres)
+
+    mean_barycentre, min_barycentre, max_barycentre = calculate_statistics(barycentres)
+
+    barycentre_displacement = np.linalg.norm(max_barycentre - min_barycentre)
+
+    print("\nMean barycentre:", mean_barycentre, f"[Min: {min_barycentre}, Max: {max_barycentre}]")
+    print("Barycentre displacement:", barycentre_displacement, "m")
+
+    if np.isclose(barycentre_displacement, 0.0, atol=1e-3):
+        print("Barycentre is stationary.")
+    else:
+        print("Barycentre is not stationary.")
+
+    barycentre_velocities = []
+
+    for velocity in velocities:
+        barycentre_velocities.append(calculate_centre_of_mass(MASSES, velocity))
+
+    barycentre_velocities = np.array(barycentre_velocities)
+
+    mean_barycentre_velocity, min_barycentre_velocity, max_barycentre_velocity = calculate_statistics(barycentre_velocities)
+
+    print("Mean barycentre velocity:", mean_barycentre_velocity, f"[Min: {min_barycentre_velocity}, Max: {max_barycentre_velocity}] m/s")    
 
     # Kepler's First Law
 
     eccentricity_vectors = calculate_eccentricity_vectors(planet_positions, planet_velocities, SUN_MASS, planet_mass)
     eccentricities_over_time = np.linalg.norm(eccentricity_vectors, axis=1)
-    
-    initial_eccentricity = eccentricities_over_time[0]
-    mean_eccentricity = np.mean(eccentricities_over_time)
-    min_eccentricity = np.min(eccentricities_over_time)
-    max_eccentricity = np.max(eccentricities_over_time)
-    
-    print(f"Initial orbital eccentricity: {initial_eccentricity:.8f}")
-    print(f"Mean orbital eccentricity:    {mean_eccentricity:.8f} [Min: {min_eccentricity:.11f}, Max: {max_eccentricity:.11f}]")
+
+    mean_eccentricity, min_eccentricity, max_eccentricity = calculate_statistics(eccentricities_over_time)
+
+    print(f"Mean orbital eccentricity: {mean_eccentricity:.8f} [Min: {min_eccentricity:.11f}, Max: {max_eccentricity:.11f}]")
 
     first_law_satisfied, max_path_error = check_keplers_first_law_trajectory(planet_positions, planet_velocities, SUN_MASS, planet_mass)
+
     print(f"Kepler's First Law Trajectory Fit Max Error: {max_path_error:.6f} %")
-    
+
     if first_law_satisfied:
         print("Kepler's First Law is satisfied.")
     else:
@@ -236,7 +264,11 @@ def main():
 
     areal_velocities = calculate_areal_velocities(planet_positions, planet_velocities)
 
-    percentage_difference_areal_velocity = (np.max(areal_velocities) - np.min(areal_velocities)) / np.mean(areal_velocities) * 100
+    mean_areal_velocity, min_areal_velocity, max_areal_velocity = calculate_statistics(areal_velocities)
+
+    print(f"Mean areal velocity: {mean_areal_velocity} [Min: {min_areal_velocity}, Max: {max_areal_velocity}]")
+
+    percentage_difference_areal_velocity = (max_areal_velocity - min_areal_velocity) / mean_areal_velocity * 100
 
     print("Percentage difference between maximum and minimum areal velocity:", percentage_difference_areal_velocity, "%")
 
@@ -271,14 +303,13 @@ def main():
     perihelion_velocity = np.linalg.norm(planet_velocities[perihelion_index])
     aphelion_velocity = np.linalg.norm(planet_velocities[aphelion_index])
 
-    print("Perihelion velocity:", perihelion_velocity, "m/s")
-    print("Aphelion velocity:", aphelion_velocity, "m/s")
-
     # Vis-viva Equation
 
     theoretical_perihelion_velocity = calculate_vis_viva_velocity(SUN_MASS, planet_mass, perihelion_distance, semi_major_axis)
     theoretical_aphelion_velocity = calculate_vis_viva_velocity(SUN_MASS, planet_mass, aphelion_distance, semi_major_axis)
 
+    print("Perihelion velocity:", perihelion_velocity, "m/s")
+    print("Aphelion velocity:", aphelion_velocity, "m/s")
     print("Theoretical Perihelion velocity:", theoretical_perihelion_velocity, "m/s")
     print("Theoretical Aphelion velocity:", theoretical_aphelion_velocity, "m/s")
 
@@ -297,6 +328,7 @@ def main():
     total_energies = []
 
     for position, velocity in zip(positions, velocities):
+
         kinetic_energy = calculate_total_kinetic_energy(MASSES, velocity)
         potential_energy = calculate_total_potential_energy(MASSES, position)
         total_energy = calculate_total_energy(kinetic_energy, potential_energy)
@@ -309,17 +341,19 @@ def main():
     potential_energies = np.array(potential_energies)
     total_energies = np.array(total_energies)
 
-    print("Initial kinetic energy:", kinetic_energies[0], "J")
-    print("Final kinetic energy:", kinetic_energies[-1], "J")
+    mean_kinetic_energy, min_kinetic_energy, max_kinetic_energy = calculate_statistics(kinetic_energies)
+    mean_potential_energy, min_potential_energy, max_potential_energy = calculate_statistics(potential_energies)
+    mean_total_energy, min_total_energy, max_total_energy = calculate_statistics(total_energies)
 
-    print("Initial gravitational potential energy:", potential_energies[0], "J")
-    print("Final gravitational potential energy:", potential_energies[-1], "J")
+    print(f"Mean kinetic energy: {mean_kinetic_energy} J [Min: {min_kinetic_energy}, Max: {max_kinetic_energy}]")
+    print(f"Mean gravitational potential energy: {mean_potential_energy} J [Min: {min_potential_energy}, Max: {max_potential_energy}]")
+    print(f"Mean total energy: {mean_total_energy} J [Min: {min_total_energy}, Max: {max_total_energy}]")
 
-    percentage_difference_total_energy = (np.max(total_energies) - np.min(total_energies)) / abs(np.mean(total_energies)) * 100
+    percentage_difference_total_energy = (max_total_energy - min_total_energy) / abs(mean_total_energy) * 100
 
     print("Percentage difference between maximum and minimum total energy:", percentage_difference_total_energy, "%")
 
-    if np.isclose(np.max(total_energies), np.min(total_energies), rtol=1e-10):
+    if np.isclose(max_total_energy, min_total_energy, rtol=1e-10):
         print("Total Solar System energy is conserved.")
     else:
         print("Total Solar System energy is not conserved.")
@@ -329,8 +363,11 @@ def main():
     escape_velocities = calculate_escape_velocity(SUN_MASS, distances)
     orbital_speeds = np.linalg.norm(planet_velocities, axis=1)
 
-    print("Initial orbital speed:", orbital_speeds[0], "m/s")
-    print("Initial escape velocity:", escape_velocities[0], "m/s")
+    mean_orbital_speed, _, max_orbital_speed = calculate_statistics(orbital_speeds)
+    mean_escape_velocity, min_escape_velocity, _ = calculate_statistics(escape_velocities)
+
+    print(f"Mean orbital speed: {mean_orbital_speed} m/s [Max: {max_orbital_speed} m/s]")
+    print(f"Mean escape velocity: {mean_escape_velocity} m/s [Min: {min_escape_velocity} m/s]")
 
     if np.all(orbital_speeds < escape_velocities):
         print(f"{target_planet} remains below escape velocity.")
@@ -357,11 +394,15 @@ def main():
 
     angular_momentum_magnitudes = np.linalg.norm(angular_momenta, axis=1)
 
-    percentage_difference_angular_momentum = (np.max(angular_momentum_magnitudes) - np.min(angular_momentum_magnitudes)) / np.mean(angular_momentum_magnitudes) * 100
+    mean_angular_momentum, min_angular_momentum, max_angular_momentum = calculate_statistics(angular_momentum_magnitudes)
+
+    print(f"Mean angular momentum: {mean_angular_momentum} [Min: {min_angular_momentum}, Max: {max_angular_momentum}]")
+
+    percentage_difference_angular_momentum = (max_angular_momentum - min_angular_momentum) / mean_angular_momentum * 100
 
     print("Percentage difference between maximum and minimum angular momentum:", percentage_difference_angular_momentum, "%")
 
-    if np.isclose(np.max(angular_momentum_magnitudes), np.min(angular_momentum_magnitudes), rtol=1e-10):
+    if np.isclose(max_angular_momentum, min_angular_momentum, rtol=1e-10):
         print("Angular momentum is conserved.")
     else:
         print("Angular momentum is not conserved.")
